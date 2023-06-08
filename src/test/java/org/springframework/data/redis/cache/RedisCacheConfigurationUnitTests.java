@@ -59,27 +59,27 @@ class RedisCacheConfigurationUnitTests {
 	}
 
 	@Test // GH-1433
-	void shouldApplySingletonTtlFunction() {
+	void shouldApplyTtlFunction() {
+
+		RedisCacheConfiguration defaultCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig()
+			.entryTtl((key, value) -> Duration.ofSeconds((Integer) value + 10));
+
+		assertThat(defaultCacheConfiguration.getTtlFunction().computeTimeToLive(Object.class, 10))
+			.isEqualTo(Duration.ofSeconds(20));
+		assertThat(defaultCacheConfiguration.getTtlFunction().computeTimeToLive(Object.class, 20))
+			.isEqualTo(Duration.ofSeconds(30));
+	}
+
+	@Test // GH-1433
+	void shouldApplyTtlFunctionUsingDuration() {
 
 		RedisCacheConfiguration defaultCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig()
 				.entryTtl(Duration.ofSeconds(10));
 
-		assertThat(defaultCacheConfiguration.getTtlFunction().getTimeToLive(Object.class, null))
+		assertThat(defaultCacheConfiguration.getTtlFunction().computeTimeToLive(Object.class, null))
 				.isEqualTo(Duration.ofSeconds(10));
-		assertThat(defaultCacheConfiguration.getTtlFunction().getTimeToLive(Object.class, null))
+		assertThat(defaultCacheConfiguration.getTtlFunction().computeTimeToLive(Object.class, null))
 				.isEqualTo(Duration.ofSeconds(10));
-	}
-
-	@Test // GH-1433
-	void shouldApplyTtlFunction() {
-
-		RedisCacheConfiguration defaultCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig()
-				.entryTtl((key, value) -> Duration.ofSeconds((Integer) value + 10));
-
-		assertThat(defaultCacheConfiguration.getTtlFunction().getTimeToLive(Object.class, 10))
-				.isEqualTo(Duration.ofSeconds(20));
-		assertThat(defaultCacheConfiguration.getTtlFunction().getTimeToLive(Object.class, 20))
-				.isEqualTo(Duration.ofSeconds(30));
 	}
 
 	private static class DomainType {

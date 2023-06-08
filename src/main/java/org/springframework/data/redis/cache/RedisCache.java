@@ -17,6 +17,7 @@ package org.springframework.data.redis.cache;
 
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -93,9 +94,9 @@ public class RedisCache extends AbstractValueAdaptingCache {
 
 
 	/**
-	 * Get {@link RedisCacheConfiguration} used.
+	 * Gets {@link RedisCacheConfiguration} used to configure this cache.
 	 *
-	 * @return immutable {@link RedisCacheConfiguration}. Never {@literal null}.
+	 * @return immutable {@link RedisCacheConfiguration} used to configure this cache; never {@literal null}.
 	 */
 	public RedisCacheConfiguration getCacheConfiguration() {
 		return this.cacheConfiguration;
@@ -128,6 +129,15 @@ public class RedisCache extends AbstractValueAdaptingCache {
 	 */
 	public CacheStatistics getStatistics() {
 		return getCacheWriter().getCacheStatistics(getName());
+	}
+
+	/**
+	 * Return the {@link TtlFunction} used to compute the per cache entry {@link Duration time to live expiration}.
+	 *
+	 * @return the {@link TtlFunction} used to compute the per cache entry {@link Duration time to live expiration}.
+	 */
+	protected TtlFunction getTtlFunction() {
+		return this.ttlFunction;
 	}
 
 	@Override
@@ -178,7 +188,7 @@ public class RedisCache extends AbstractValueAdaptingCache {
 
 		Object cacheValue = preProcessCacheValue(value);
 
-		if (!isAllowNullValues() && cacheValue == null) {
+		if (isNonAllowedNullCacheValue(cacheValue)) {
 
 			String message = String.format("Cache '%s' does not allow 'null' values; Avoid storing null"
 					+ " via '@Cacheable(unless=\"#result == null\")' or configure RedisCache to allow 'null'"
@@ -189,7 +199,7 @@ public class RedisCache extends AbstractValueAdaptingCache {
 		}
 
 		getCacheWriter().put(getName(), createAndConvertCacheKey(key), serializeCacheValue(cacheValue),
-				ttlFunction.getTimeToLive(key, value));
+				getTtlFunction().computeTimeToLive(key, value));
 	}
 
 	@Override
@@ -197,12 +207,12 @@ public class RedisCache extends AbstractValueAdaptingCache {
 
 		Object cacheValue = preProcessCacheValue(value);
 
-		if (!isAllowNullValues() && cacheValue == null) {
+		if (isNonAllowedNullCacheValue(cacheValue)) {
 			return get(key);
 		}
 
 		byte[] result = getCacheWriter().putIfAbsent(getName(), createAndConvertCacheKey(key),
-				serializeCacheValue(cacheValue), ttlFunction.getTimeToLive(key, value));
+				serializeCacheValue(cacheValue), getTtlFunction().computeTimeToLive(key, value));
 
 		return result != null ? new SimpleValueWrapper(fromStoreValue(deserializeCacheValue(result))) : null;
 	}
@@ -320,8 +330,8 @@ public class RedisCache extends AbstractValueAdaptingCache {
 	 */
 	protected String convertKey(Object key) {
 
-		if (key instanceof String) {
-			return (String) key;
+		if (key instanceof String stringKey) {
+			return stringKey;
 		}
 
 		TypeDescriptor source = TypeDescriptor.forObject(key);
@@ -366,6 +376,10 @@ public class RedisCache extends AbstractValueAdaptingCache {
 
 	private boolean isCollectionLikeOrMap(TypeDescriptor source) {
 		return source.isArray() || source.isCollection() || source.isMap();
+	}
+
+	private boolean isNonAllowedNullCacheValue(@Nullable Object cacheValue) {
+		return cacheValue == null && !isAllowNullValues();
 	}
 
 	private String convertCollectionLikeOrMapKey(Object key, TypeDescriptor source) {
